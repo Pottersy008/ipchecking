@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geo Check</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background-color: var(--tg-theme-bg-color, #212121);
+            color: var(--tg-theme-text-color, #ffffff);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        /* Анимация загрузки */
+        .loader {
+            border: 4px solid var(--tg-theme-hint-color, #f3f3f3);
+            border-top: 4px solid var(--tg-theme-button-color, #3498db);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Скрытые блоки */
+        #loading, #success, #error {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* Иконки */
+        .icon { font-size: 64px; margin-bottom: 15px; }
+
+        h2 { margin: 10px 0; }
+        p { color: var(--tg-theme-hint-color, #aaaaaa); margin-bottom: 30px; }
+
+        /* Кнопка */
+        button {
+            background-color: var(--tg-theme-button-color, #3498db);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            max-width: 300px;
+            transition: opacity 0.2s;
+        }
+        button:active { opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+    <div id="loading" style="display: flex;">
+        <div class="loader"></div>
+        <span>Определяем ваш регион...</span>
+    </div>
+
+    <div id="success">
+        <div class="icon">✅</div>
+        <h2>Доступ разрешен</h2>
+        <p>Ваш регион: <b id="region-name">...</b><br>Приятного просмотра!</p>
+        <button onclick="returnData()">Вернуться в бота</button>
+    </div>
+
+    <div id="error">
+        <div class="icon">⛔️</div>
+        <h2>Доступ ограничен</h2>
+        <p>Ваш регион: <b>Россия</b>.<br>Правообладатели ограничивают доступ.</p>
+        <button onclick="returnData()">Понятно</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand(); 
+
+        let detectedCountry = "UNKNOWN";
+
+        // Показываем нужный экран
+        function showScreen(screenId) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('success').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById(screenId).style.display = 'flex';
+        }
+
+        // Функция отправки данных боту
+        function returnData() {
+            tg.sendData(detectedCountry);
+        }
+
+        // Запрос к API
+        fetch('https://ipwho.is/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    detectedCountry = data.country_code; // Например "RU" или "KZ"
+                    const countryName = data.country; // Полное название
+                    
+                    document.getElementById('region-name').innerText = countryName;
+
+                    if (detectedCountry === "RU") {
+                        showScreen('error');
+                        // Включаем вибрацию "ошибка" (если поддерживается)
+                        if(tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+                    } else {
+                        showScreen('success');
+                        // Включаем вибрацию "успех"
+                        if(tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                    }
+                } else {
+                    // Ошибка API — пускаем юзера (считаем, что не РФ)
+                    detectedCountry = "UNKNOWN";
+                    document.getElementById('region-name').innerText = "Не определен";
+                    showScreen('success');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                // Ошибка сети — тоже пускаем
+                detectedCountry = "ERROR";
+                document.getElementById('region-name').innerText = "Ошибка сети";
+                showScreen('success');
+            });
+    </script>
+</body>
+</html>
